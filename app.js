@@ -115,7 +115,7 @@ function showAssistantAnswer(answerText) {
     answer.setAttribute('role', 'button');
     answer.setAttribute('tabindex', '0');
     const hint = document.createElement('small');
-    hint.textContent = `Open ${recipe.title} ↓`;
+    hint.textContent = `Jump to ${recipe.title} ↓`;
     answer.appendChild(hint);
   } else {
     answer.textContent = answerText;
