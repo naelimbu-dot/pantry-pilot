@@ -14,12 +14,6 @@ Example request:
 }
 ```
 
-## Run locally
-
-1. Copy `.env.example` to a new file named `.env` in the project root.
-2. Set `GEMINI_API_KEY` in `.env` (do not commit or share this file).
-3. Run `node server.mjs` and open `http://localhost:4173`.
-
 ## API contract
 
 `POST /api/ask`
