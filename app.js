@@ -87,7 +87,7 @@ function guide(question) {
   const matchingIngredient = recipes.find(r => r.ingredients.some(i => i.toLowerCase().split(/\W+/).some(word => word.length > 2 && q.includes(word))));
   const affordable = matchingIngredient && (!budget || matchingIngredient.price <= budget) ? matchingIngredient : recipes.filter(r => !budget || r.price <= budget).sort((a,b) => a.price-b.price)[0];
   const pick = affordable || matchingIngredient || recipes[0];
-  return `<strong>${pick.title}</strong> is a great fit at ${money(pick.price)} for two. You’ll need ${pick.ingredients.slice(0, 3).join(', ')}, plus a few pantry basics.`;
+  return `${pick.title} is a great fit at ${money(pick.price)} for two. You’ll need ${pick.ingredients.slice(0, 3).join(', ')}, plus a few pantry basics.`;
 }
 function linkedRecipe(answerText) {
   const normalized = answerText.toLowerCase();
@@ -96,18 +96,29 @@ function linkedRecipe(answerText) {
 function showAssistantAnswer(answerText) {
   const answer = document.querySelector('#answer');
   const recipe = linkedRecipe(answerText);
-  answer.textContent = answerText;
+  answer.replaceChildren();
   answer.classList.toggle('is-recipe-result', Boolean(recipe));
   answer.removeAttribute('role');
   answer.removeAttribute('tabindex');
   delete answer.dataset.recipeId;
   if (recipe) {
+    const titleStart = answerText.toLowerCase().indexOf(recipe.title.toLowerCase());
+    if (titleStart >= 0) {
+      answer.append(document.createTextNode(answerText.slice(0, titleStart)));
+      const title = document.createElement('strong');
+      title.textContent = answerText.slice(titleStart, titleStart + recipe.title.length);
+      answer.append(title, document.createTextNode(answerText.slice(titleStart + recipe.title.length)));
+    } else {
+      answer.textContent = answerText;
+    }
     answer.dataset.recipeId = recipe.id;
     answer.setAttribute('role', 'button');
     answer.setAttribute('tabindex', '0');
     const hint = document.createElement('small');
     hint.textContent = `Open ${recipe.title} ↓`;
     answer.appendChild(hint);
+  } else {
+    answer.textContent = answerText;
   }
 }
 function openAnsweredRecipe() {
