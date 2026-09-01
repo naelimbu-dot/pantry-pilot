@@ -54,7 +54,8 @@ function render(list) {
     section.innerHTML = `<div class="category-heading"><div><p class="eyebrow">${category.toUpperCase()}</p><h3>${category}</h3></div><p>${categoryInfo[category].note}</p></div><div class="category-grid"></div>`;
     const cards = section.querySelector('.category-grid');
     matching.forEach(recipe => {
-      const card = template.content.cloneNode(true);
+    const card = template.content.cloneNode(true);
+      card.querySelector('.recipe-card').id = `recipe-${recipe.id}`;
       const image = card.querySelector('img');
       image.src = `assets/recipes/${recipe.id}.png`;
       image.alt = `${recipe.title} recipe`;
@@ -88,6 +89,33 @@ function guide(question) {
   const pick = affordable || matchingIngredient || recipes[0];
   return `<strong>${pick.title}</strong> is a great fit at ${money(pick.price)} for two. You’ll need ${pick.ingredients.slice(0, 3).join(', ')}, plus a few pantry basics.`;
 }
+function linkedRecipe(answerText) {
+  const normalized = answerText.toLowerCase();
+  return recipes.find(recipe => normalized.includes(recipe.title.toLowerCase()));
+}
+function showAssistantAnswer(answerText) {
+  const answer = document.querySelector('#answer');
+  const recipe = linkedRecipe(answerText);
+  answer.textContent = answerText;
+  answer.classList.toggle('is-recipe-result', Boolean(recipe));
+  answer.removeAttribute('role');
+  answer.removeAttribute('tabindex');
+  delete answer.dataset.recipeId;
+  if (recipe) {
+    answer.dataset.recipeId = recipe.id;
+    answer.setAttribute('role', 'button');
+    answer.setAttribute('tabindex', '0');
+    const hint = document.createElement('small');
+    hint.textContent = `Open ${recipe.title} ↓`;
+    answer.appendChild(hint);
+  }
+}
+function openAnsweredRecipe() {
+  const recipeId = document.querySelector('#answer').dataset.recipeId;
+  if (recipeId) document.querySelector(`#recipe-${recipeId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+document.querySelector('#answer').addEventListener('click', openAnsweredRecipe);
+document.querySelector('#answer').addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openAnsweredRecipe(); } });
 async function askAssistant(question) {
   const answer = document.querySelector('#answer');
   answer.textContent = 'Finding the best recipe match…';
@@ -99,9 +127,12 @@ async function askAssistant(question) {
     });
     if (!response.ok) throw new Error('Assistant unavailable');
     const result = await response.json();
-    answer.textContent = result.answer;
+    showAssistantAnswer(result.answer);
   } catch {
-    answer.innerHTML = `${guide(question)} <br><small>Running in local fallback mode until Gemini is configured.</small>`;
+    showAssistantAnswer(guide(question));
+    const fallback = document.createElement('small');
+    fallback.textContent = 'Running in local fallback mode until Gemini is configured.';
+    answer.appendChild(fallback);
   }
 }
 document.querySelector('#question-form').addEventListener('submit', event => { event.preventDefault(); const question = event.currentTarget.question.value.trim(); if (question) askAssistant(question); });
