@@ -24,7 +24,22 @@ function json(response, status, body) {
 async function askGemini(question, recipes) {
   if (!env.GEMINI_API_KEY) throw new Error('Missing GEMINI_API_KEY');
   const safeRecipes = Array.isArray(recipes) ? recipes.slice(0, 50).map(({ title, price, ingredients }) => ({ title, price, ingredients })) : [];
-  const prompt = `You are Pantry Pilot's helpful recipe guide. Only recommend recipes from this catalogue: ${JSON.stringify(safeRecipes)}. Answer the user's question concisely. Include an estimated price and a few key ingredients. If nothing fits, say so and suggest the closest option. User question: ${question}`;
+  const prompt = `You are Pantry Pilot, a warm, practical kitchen guide helping a person decide what to eat tonight.
+
+Your job is to recommend exactly ONE recipe from this catalogue: ${JSON.stringify(safeRecipes)}.
+
+How to choose:
+- Read the user's actual need first: ingredients they have, a maximum budget, dietary preference, desired speed, meal type, or mood.
+- Treat explicit dietary needs and a stated maximum budget as priorities. Do not claim a recipe meets a budget when it does not.
+- Prefer recipes that use ingredients the user mentioned. If an exact ingredient match is unavailable, choose the closest sensible recipe and gently say what they would need to pick up.
+- If the user asks for something cheap, favor lower estimated cost. If they ask for fast, favor lower cooking time. Balance both when they ask for both.
+- Never invent recipes, ingredients, prices, cooking times, dietary labels, substitutions, availability, or nutritional facts. Use only catalogue facts.
+- Be encouraging and specific, never salesy. Help the user feel confident choosing dinner.
+
+Return ONLY valid JSON with exactly these fields: {"recipeTitle":"the exact catalogue title","why":"a friendly, natural explanation in one or two sentences, 18 to 40 words"}.
+The explanation should say why this choice fits their request. Mention at most one relevant catalogue fact such as price, time, or an ingredient; the website will show the full details. Do not use markdown, labels, or any other fields.
+
+User question: ${question}`;
   const model = env.GEMINI_MODEL || 'gemini-3.7-flash';
   const apiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST',
@@ -33,7 +48,13 @@ async function askGemini(question, recipes) {
   });
   if (!apiResponse.ok) throw new Error(`Gemini returned ${apiResponse.status}`);
   const data = await apiResponse.json();
-  return data.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim() || 'I could not find a recipe response.';
+  const text = data.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
+  if (!text) throw new Error('Gemini returned an empty response');
+  const jsonText = text.replace(/^```(?:json)?\s*|\s*```$/g, '').trim();
+  const recommendation = JSON.parse(jsonText);
+  const recipe = safeRecipes.find(item => item.title.toLowerCase() === String(recommendation.recipeTitle || '').toLowerCase());
+  if (!recipe || !String(recommendation.why || '').trim()) throw new Error('Gemini returned an invalid recommendation');
+  return { recipeTitle: recipe.title, why: String(recommendation.why).trim() };
 }
 
 createServer(async (request, response) => {
@@ -44,7 +65,7 @@ createServer(async (request, response) => {
     try {
       const { question = '', recipes = [] } = JSON.parse(raw || '{}');
       if (!question.trim()) return json(response, 400, { error: 'A question is required.' });
-      return json(response, 200, { answer: await askGemini(question, recipes) });
+      return json(response, 200, { recommendation: await askGemini(question, recipes) });
     } catch (error) {
       return json(response, env.GEMINI_API_KEY ? 502 : 503, { error: error.message });
     }

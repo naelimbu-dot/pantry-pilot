@@ -84,33 +84,49 @@ document.querySelectorAll('.chip').forEach(button => button.addEventListener('cl
 function guide(question) {
   const q = question.toLowerCase();
   const budget = Number((q.match(/\$?\s?(\d+(?:\.\d+)?)/) || [])[1]);
-  const matchingIngredient = recipes.find(r => r.ingredients.some(i => i.toLowerCase().split(/\W+/).some(word => word.length > 2 && q.includes(word))));
-  const affordable = matchingIngredient && (!budget || matchingIngredient.price <= budget) ? matchingIngredient : recipes.filter(r => !budget || r.price <= budget).sort((a,b) => a.price-b.price)[0];
-  const pick = affordable || matchingIngredient || recipes[0];
-  return `${pick.title} is a great fit at ${money(pick.price)} for two. You’ll need ${pick.ingredients.slice(0, 3).join(', ')}, plus a few pantry basics.`;
+  const wantsFast = /fast|quick|speedy|soon|minute|minutes/.test(q);
+  const wantsCheap = /cheap|cheapest|budget|affordable|under|less than|\$/.test(q);
+  const ranked = recipes.map(recipe => {
+    const ingredientMatch = recipe.ingredients.some(item => item.toLowerCase().split(/\W+/).some(word => word.length > 2 && q.includes(word)));
+    let score = ingredientMatch ? 100 : 0;
+    if (budget) score += recipe.price <= budget ? 40 : -50;
+    if (wantsCheap) score -= recipe.price * 3;
+    if (wantsFast) score -= Number.parseInt(recipe.time) * 1.2;
+    return { recipe, score, ingredientMatch };
+  }).sort((a, b) => b.score - a.score);
+  const { recipe: pick, ingredientMatch } = ranked[0];
+  let why = `${money(pick.price)} for two and ready in ${pick.time.toLowerCase()}.`;
+  if (ingredientMatch) why = `It makes good use of an ingredient you mentioned, and it is ready in ${pick.time.toLowerCase()}.`;
+  else if (wantsCheap && wantsFast) why = `It keeps both cost and time down: ${money(pick.price)} for two, ready in ${pick.time.toLowerCase()}.`;
+  else if (wantsCheap) why = `It is one of the most budget-friendly options at ${money(pick.price)} for two.`;
+  else if (wantsFast) why = `It is one of the quickest options, ready in ${pick.time.toLowerCase()}.`;
+  return { recipeTitle: pick.title, why };
 }
-function linkedRecipe(answerText) {
-  const normalized = answerText.toLowerCase();
-  return recipes.find(recipe => normalized.includes(recipe.title.toLowerCase()));
-}
-function showAssistantAnswer(answerText) {
+function showAssistantAnswer(recommendation) {
   const answer = document.querySelector('#answer');
-  const recipe = linkedRecipe(answerText);
+  const recipe = recipes.find(item => item.title.toLowerCase() === String(recommendation.recipeTitle || '').toLowerCase());
   answer.replaceChildren();
   answer.classList.toggle('is-recipe-result', Boolean(recipe));
   answer.removeAttribute('role');
   answer.removeAttribute('tabindex');
   delete answer.dataset.recipeId;
   if (recipe) {
-    const titleStart = answerText.toLowerCase().indexOf(recipe.title.toLowerCase());
-    if (titleStart >= 0) {
-      answer.append(document.createTextNode(answerText.slice(0, titleStart)));
-      const title = document.createElement('strong');
-      title.textContent = answerText.slice(titleStart, titleStart + recipe.title.length);
-      answer.append(title, document.createTextNode(answerText.slice(titleStart + recipe.title.length)));
-    } else {
-      answer.textContent = answerText;
-    }
+    const label = document.createElement('p');
+    label.className = 'recommendation-label';
+    label.textContent = 'RECOMMENDED FOR YOU';
+    const title = document.createElement('strong');
+    title.className = 'recommendation-title';
+    title.textContent = recipe.title;
+    const why = document.createElement('p');
+    why.className = 'recommendation-why';
+    why.textContent = recommendation.why;
+    const facts = document.createElement('div');
+    facts.className = 'recommendation-facts';
+    facts.innerHTML = `<span>${money(recipe.price)} / 2</span><span>${recipe.time}</span>`;
+    const ingredients = document.createElement('p');
+    ingredients.className = 'recommendation-ingredients';
+    ingredients.textContent = `Needs: ${recipe.ingredients.slice(0, 3).join(' · ')}`;
+    answer.append(label, title, why, facts, ingredients);
     answer.dataset.recipeId = recipe.id;
     answer.setAttribute('role', 'button');
     answer.setAttribute('tabindex', '0');
@@ -118,7 +134,7 @@ function showAssistantAnswer(answerText) {
     hint.textContent = `Jump to ${recipe.title} ↓`;
     answer.appendChild(hint);
   } else {
-    answer.textContent = answerText;
+    answer.textContent = 'I could not find a matching recipe just now. Try asking about a budget, ingredient, or cooking time.';
   }
 }
 function openAnsweredRecipe() {
@@ -138,7 +154,7 @@ async function askAssistant(question) {
     });
     if (!response.ok) throw new Error('Assistant unavailable');
     const result = await response.json();
-    showAssistantAnswer(result.answer);
+    showAssistantAnswer(result.recommendation);
   } catch {
     showAssistantAnswer(guide(question));
     const fallback = document.createElement('small');
