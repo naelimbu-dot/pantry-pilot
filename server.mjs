@@ -54,4 +54,4 @@ createServer(async (request, response) => {
   if (!filePath.startsWith(root) || filePath.endsWith('.env') || !existsSync(filePath)) { response.writeHead(404); return response.end('Not found'); }
   response.writeHead(200, { 'Content-Type': mime[extname(filePath)] || 'application/octet-stream' });
   createReadStream(filePath).pipe(response);
-}).listen(Number(env.PORT || 4173), () => console.log(`Pantry Pilot is running at http://localhost:${env.PORT || 4173}`));
+}).listen(Number(env.PORT || 4173), '0.0.0.0', () => console.log(`Pantry Pilot is running at http://localhost:${env.PORT || 4173}`));

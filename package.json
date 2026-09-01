@@ -1,0 +1,13 @@
+{
+  "name": "pantry-pilot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Recipe discovery MVP with a Gemini-powered recipe guide.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
